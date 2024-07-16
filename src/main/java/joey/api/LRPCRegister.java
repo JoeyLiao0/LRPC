@@ -8,7 +8,7 @@ public class LRPCRegister {
     //注册中心地址
     private NetworkEndpoint registerEndpoint;
 
-    //线程池最大线程数
+    //线程池线程数
     private Integer threadNum;
 
     //初始化配置，设置注册中心地址、最大线程数
@@ -16,12 +16,14 @@ public class LRPCRegister {
         //注入
         this.registerEndpoint = new NetworkEndpoint(registerIp,registerPort);
         this.threadNum = threadNum;
-        //判断地址是否有效
-        if(registerEndpoint.isValid()){
-            System.out.println("---成功加载配置---");
-        }else{
+        //判断
+        if(!registerEndpoint.isValid()){
             throw new RuntimeException("---ip地址/端口无效---");
         }
+        if(threadNum<=0){
+            throw  new IllegalArgumentException("---线程数非法---");
+        }
+        System.out.println("---成功加载配置---");
     }
 
     //启动注册中心

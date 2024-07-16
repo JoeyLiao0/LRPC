@@ -2,10 +2,15 @@ package joey.operator;
 
 import com.alibaba.fastjson.JSON;
 import joey.common.entity.NetworkEndpoint;
+import joey.common.entity.RpcExceptionCode;
 import joey.common.entity.msg.DiscoveryRequest;
 import joey.common.entity.msg.DiscoveryResponse;
 import joey.common.entity.msg.InvokeRequest;
 import joey.common.entity.msg.InvokeResponse;
+import joey.common.exception.FailToConnectException;
+import joey.common.exception.FailToInvokeException;
+import joey.common.exception.MysocketException;
+import joey.common.exception.NoSuchServiceException;
 import joey.common.util.myLoadBalance;
 import joey.common.util.mySocket;
 
@@ -18,88 +23,101 @@ import java.util.*;
 public class ClientOperator {
 
     //从注册中心获取服务端地址
-    public NetworkEndpoint getServerEndpoint(NetworkEndpoint registerEndpoint,String serviceName){
+    public NetworkEndpoint getServerEndpoint(NetworkEndpoint registerEndpoint, String serviceName) throws FailToConnectException, MysocketException {
         //创建请求消息 msg
         DiscoveryRequest discoveryRequest = new DiscoveryRequest(serviceName);
-        Map<String,Object> msg = new HashMap<>();
-        msg.put("type","DiscoveryRequest");
-        msg.put("payload",discoveryRequest);
+        Map<String, Object> msg = new HashMap<>();
+        msg.put("type", "DiscoveryRequest");
+        msg.put("payload", discoveryRequest);
 
         //序列化Map
         String msgString = JSON.toJSONString(msg);
 
-        try{
-            Socket socket = new Socket(registerEndpoint.getIp(),registerEndpoint.getPort());
+        mySocket ms = null;
+
+        try {
+            Socket socket = new Socket(registerEndpoint.getIp(), registerEndpoint.getPort());
+
             //消息发送与接收
-            mySocket ms = new mySocket(socket);
+            ms = new mySocket(socket);
+
             //发送
             ms.sendMessage(msgString);
 
             //接收
-            Map<String,Object> map2 = ms.receiveMessage();
+            Map<String, Object> map2 = ms.receiveMessage();
 
-            //由最初的发起者调用
-            ms.close();
-
-            if(map2.get("type").equals("DiscoveryResponse")){
+            if (map2.get("type").equals("DiscoveryResponse")) {
 
                 String jsonString = JSON.toJSONString(map2.get("payload"));
-                DiscoveryResponse discoveryResponse = JSON.parseObject(jsonString,DiscoveryResponse.class);
+                DiscoveryResponse discoveryResponse = JSON.parseObject(jsonString, DiscoveryResponse.class);
                 Set<NetworkEndpoint> s = discoveryResponse.getServerEndpointList();
 
                 //负载均衡
                 return myLoadBalance.getServerEndpoint(s);
 
-            }else{
-                System.out.println("---发现服务失败，注册中心返回有误---");
             }
 
-        }catch(IOException e){
-            System.out.println("---连接注册中心失败---");
+        } catch (IOException e) {
+            throw new FailToConnectException("---连接注册中心失败---", e);
+        } finally {
+            if (ms != null) {
+                //关闭
+                ms.close();
+            }
         }
 
         return null;
     }
 
     //执行方法
-    public Object invokeMethod(NetworkEndpoint serverEndpoint, String serviceName, Map<String,Object> parameterMap){
+    public Object invokeMethod(NetworkEndpoint serverEndpoint, String serviceName, List<Object> parameterList) throws FailToConnectException, MysocketException,NoSuchServiceException,FailToInvokeException {
         //创建请求消息 msg
-        InvokeRequest invokeRequest = new InvokeRequest(serviceName,parameterMap);
-        Map<String,Object> msg = new HashMap<>();
-        msg.put("type","InvokeRequest");
-        msg.put("payload",invokeRequest);
+        InvokeRequest invokeRequest = new InvokeRequest(serviceName, parameterList);
+        Map<String, Object> msg = new HashMap<>();
+        msg.put("type", "InvokeRequest");
+        msg.put("payload", invokeRequest);
 
         //序列化Map
         String msgString = JSON.toJSONString(msg);
 
-        try{
-            Socket socket = new Socket(serverEndpoint.getIp(),serverEndpoint.getPort());
+        mySocket ms = null;
 
-            mySocket ms = new mySocket(socket);
+        try {
+
+            Socket socket = new Socket(serverEndpoint.getIp(), serverEndpoint.getPort());
+
+            ms = new mySocket(socket);
 
             //发送
             ms.sendMessage(msgString);
 
             //接收
-            Map<String,Object> map2 = ms.receiveMessage();
+            Map<String, Object> map2 = ms.receiveMessage();
 
-            //关闭
-            ms.close();
 
-            if(map2.get("type").equals("InvokeResponse")){
+            if (map2.get("type").equals("InvokeResponse")) {
 
                 String jsonString = JSON.toJSONString(map2.get("payload"));
                 InvokeResponse invokeResponse = JSON.parseObject(jsonString, InvokeResponse.class);
 
-                return invokeResponse.getResult();
-
-            }else{
-                System.out.println("---调用服务失败，服务端返回有误---");
-                System.out.println(map2.get("type"));
+                switch (invokeResponse.getRpcExceptionCode()){
+                    case SUCCESS:
+                        return invokeResponse.getResult();
+                    case INVOKE_FAILURE:
+                        throw new FailToInvokeException("---调用服务失败---");
+                    case NO_SUCH_SERVICE:
+                        throw new NoSuchServiceException("---服务不存在---");
+                }
             }
 
-        }catch(IOException e){
-            System.out.println("---连接服务端失败---");
+        } catch (IOException e) {
+            throw new FailToConnectException("---连接服务器失败---", e);
+        } finally {
+            if (ms != null) {
+                //关闭
+                ms.close();
+            }
         }
 
         return null;

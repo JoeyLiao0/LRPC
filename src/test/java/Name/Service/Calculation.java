@@ -1,4 +1,4 @@
-package Service;
+package Name.Service;
 
 import joey.common.annotation.LRPCService;
 

@@ -2,11 +2,13 @@ package joey.api;
 
 import joey.common.annotation.LRPCService;
 import joey.common.entity.NetworkEndpoint;
+import joey.common.exception.NoSuchServiceException;
 import joey.handler.ServerHandler;
 import joey.operator.ServerOperator;
 import joey.threadPool.ServerThreadPool;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.URL;
@@ -14,11 +16,13 @@ import java.net.URLDecoder;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.jar.JarEntry;
+import java.util.jar.JarInputStream;
 import java.util.regex.Pattern;
 
 public class LRPCServer {
 
-    //线程池最大线程数
+    //线程池线程数
     private Integer threadNum;
 
     //注册中心地址
@@ -54,17 +58,23 @@ public class LRPCServer {
 
     //启动服务端，提供服务
     public void start() {
-        //获取本地地址
-        getServerEndpoint();
+        try{
+            //获取本地地址
+            getServerEndpoint();
 
-        //获取本地服务
-        getServiceClassMap();
+            //获取本地服务
+            getServiceClassMap();
 
-        //服务注册
-        new ServerOperator().registerService(registerEndpoint, serverEndpoint, serviceClassMap);
+            //服务注册
+            new ServerOperator().registerService(registerEndpoint, serverEndpoint, serviceClassMap);
 
-        //开启监听
-        new ServerThreadPool(threadNum, serviceClassMap, serverEndpoint).start();
+            //开启监听
+            new ServerThreadPool(threadNum, serviceClassMap, serverEndpoint).start();
+
+        }catch (RuntimeException e){
+            System.out.println(e.getMessage());
+        }
+
     }
 
     //获取服务端地址（本地ip+可用的端口）
@@ -75,7 +85,7 @@ public class LRPCServer {
             port = serverSocket.getLocalPort();
         } catch (IOException e) {
             // 处理IOException异常
-            e.printStackTrace();
+            System.out.println("---获取服务端地址失败---");
         }
         if(port!=-1) {
             this.serverEndpoint = new NetworkEndpoint("localhost", port);
@@ -91,14 +101,24 @@ public class LRPCServer {
         //this.scanDir,扫描的根目录
         try {
             // 把 包路径之间的.换成文件分隔符
-            String packageDirName = this.scanDir.replaceAll("\\.", Pattern.quote(File.separator));
+            String packageDirName = this.scanDir.replaceAll("\\.","/");
             //通过当前线程获取类加载器，进而获得包根目录的资源路径（运行时）。（因为是实际上从当前线程获取的类加载器，所以是运行时的资源路径）
             URL url =Thread.currentThread().getContextClassLoader().getResource(packageDirName);
-            if(url!=null){
-                //统一为utf-8编码
-                String filePath = URLDecoder.decode(url.getFile(),"utf-8");
-                rootPath = filePath.substring(0, filePath.length()-packageDirName.length());
-                loadBean(new File(filePath));
+
+            if (url != null) {
+//                System.out.println(url);
+                if ("jar".equals(url.getProtocol())) {
+                    // 资源位于JAR中
+                    loadBeanFromJar(url);
+                } else {
+                    // 资源位于文件系统
+                    String filePath = URLDecoder.decode(url.getFile(), "utf-8");
+                    this.rootPath = filePath.substring(0, filePath.length() - packageDirName.length());
+                    File dir = new File(filePath);
+                    if (dir.exists()) {
+                        loadBean(dir);
+                    }
+                }
             }
 
         } catch (Exception e) {
@@ -138,11 +158,47 @@ public class LRPCServer {
                                 }
                             }
                         } catch (ClassNotFoundException  e) {
-                            e.printStackTrace();
+                            throw new NoSuchServiceException(e);
                         }
                     }
                 }
             }
+        }
+    }
+
+    private void loadBeanFromJar(URL jarUrl) {
+        try {
+            String jarPath = jarUrl.getPath().substring(5, jarUrl.getPath().indexOf("!"));
+            String internalPath = jarUrl.getPath().substring(jarUrl.getPath().indexOf("!") + 2);
+//            System.out.println(internalPath);
+            String i = internalPath.replace("/",".");
+            try (JarInputStream jarStream = new JarInputStream(new FileInputStream(jarPath))) {
+                JarEntry entry;
+                while ((entry = jarStream.getNextJarEntry()) != null) {
+                    if (!entry.isDirectory() && entry.getName().startsWith(internalPath) && entry.getName().endsWith(".class")) {
+                        String className = entry.getName().substring(internalPath.length() + 1, entry.getName().length() - 6).replace('/', '.');
+//                        System.out.println("className:"+i+"."+className);
+                        loadClass(i+"."+className);
+                    }
+                }
+            }
+        } catch (IOException e) {
+            throw new RuntimeException("Error loading beans from JAR", e);
+        }
+    }
+
+    private void loadClass(String className) {
+        try {
+            Class<?> aClass = this.getClass().getClassLoader().loadClass(className);
+            if (!aClass.isInterface()) {
+                LRPCService annotation = aClass.getAnnotation(LRPCService.class);
+                if (annotation != null) {
+                    System.out.println("---扫描到服务类【" + className + "】---");
+                    this.serviceClassMap.put(className, aClass);
+                }
+            }
+        } catch (ClassNotFoundException e) {
+            throw new NoSuchServiceException(e);
         }
     }
 }

@@ -1,30 +1,24 @@
 package joey.common.entity.msg;
 
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class InvokeRequest {
 
-    private String serviceName;
+    private final String serviceName;
 
-    private Map<String,Object> parameter;
+    private final List<Object> parameter;
 
     public String getServiceName() {
         return serviceName;
     }
 
-    public void setServiceName(String serviceName) {
-        this.serviceName = serviceName;
-    }
-
-    public Map<String, Object> getParameter() {
+    public List<Object> getParameter() {
         return parameter;
     }
 
-    public void setParameter(Map<String, Object> parameter) {
-        this.parameter = parameter;
-    }
-
-    public InvokeRequest(String serviceName, Map<String, Object> parameter) {
+    public InvokeRequest(String serviceName, List<Object> parameter) {
         this.serviceName = serviceName;
         this.parameter = parameter;
     }

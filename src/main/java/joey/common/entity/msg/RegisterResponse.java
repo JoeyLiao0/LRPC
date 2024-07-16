@@ -1,17 +1,17 @@
 package joey.common.entity.msg;
 
+import joey.common.entity.RpcExceptionCode;
+
 public class RegisterResponse {
-    String msg;
 
-    public RegisterResponse(String msg) {
-        this.msg = msg;
+    private final RpcExceptionCode rpcExceptionCode;
+
+    public RpcExceptionCode getRpcExceptionCode() {
+        return rpcExceptionCode;
     }
 
-    public String getMsg() {
-        return msg;
+    public RegisterResponse(RpcExceptionCode rpcExceptionCode) {
+        this.rpcExceptionCode = rpcExceptionCode;
     }
 
-    public void setMsg(String msg) {
-        this.msg = msg;
-    }
 }

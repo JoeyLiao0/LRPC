@@ -5,17 +5,15 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>com.liao</groupId>
-    <artifactId>ProtobufDemo</artifactId>
+    <artifactId>LRPC</artifactId>
     <version>1.0-SNAPSHOT</version>
 
     <properties>
         <maven.compiler.source>17</maven.compiler.source>
         <maven.compiler.target>17</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-
-
-
     </properties>
+
     <dependencies>
         <!--来自阿里巴巴，快速处理json格式数据-->
         <dependency>

@@ -6,9 +6,9 @@ import java.util.Set;
 
 public class RegisterRequest {
 
-    private Set<String> serviceName;
+    private final Set<String> serviceName;
 
-    private NetworkEndpoint serverEndpoint;
+    private final NetworkEndpoint serverEndpoint;
 
     public RegisterRequest(Set<String> serviceName, NetworkEndpoint serverEndpoint) {
         this.serviceName = serviceName;
@@ -19,15 +19,9 @@ public class RegisterRequest {
         return serviceName;
     }
 
-    public void setServiceName(Set<String> serviceName) {
-        this.serviceName = serviceName;
-    }
-
     public NetworkEndpoint getServerEndpoint() {
         return serverEndpoint;
     }
 
-    public void setServerEndpoint(NetworkEndpoint serverEndpoint) {
-        this.serverEndpoint = serverEndpoint;
-    }
+
 }

@@ -1,30 +1,22 @@
 package joey.common.entity.msg;
 
+import joey.common.entity.RpcExceptionCode;
+
 public class InvokeResponse {
-    private Object result;
+    private final Object result;
 
-
-    private Boolean isInvoked;
-
-    public Boolean getInvoked() {
-        return isInvoked;
-    }
-
-    public void setInvoked(Boolean invoked) {
-        isInvoked = invoked;
-    }
+    private final RpcExceptionCode rpcExceptionCode;
 
     public Object getResult() {
         return result;
     }
 
-    public void setResult(Object result) {
-        this.result = result;
+    public RpcExceptionCode getRpcExceptionCode() {
+        return rpcExceptionCode;
     }
 
-
-    public InvokeResponse(Object result, Boolean isInvoked) {
+    public InvokeResponse(Object result, RpcExceptionCode rpcExceptionCode) {
         this.result = result;
-        this.isInvoked = isInvoked;
+        this.rpcExceptionCode = rpcExceptionCode;
     }
 }

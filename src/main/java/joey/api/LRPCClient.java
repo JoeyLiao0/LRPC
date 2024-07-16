@@ -1,9 +1,14 @@
 package joey.api;
 
 import joey.common.entity.NetworkEndpoint;
+import joey.common.exception.MysocketException;
+import joey.common.exception.NoSuchServiceException;
+import joey.common.exception.TimeoutException;
 import joey.operator.ClientOperator;
 
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -18,37 +23,40 @@ public class LRPCClient {
     private NetworkEndpoint registerEndpoint;
 
     //初始化配置，设置注册中心地址、超时时间
-    public void init(String registerIp,Integer registerPort,Long timeout){
+    public void init(String registerIp,Integer registerPort,Long timeout)throws IllegalArgumentException{
         //注入
         this.registerEndpoint = new NetworkEndpoint(registerIp,registerPort);
         this.requestTimeout = timeout;
+
         //判断地址是否有效
-        if(registerEndpoint.isValid()){
-            System.out.println("---成功加载配置---");
+        if(!this.registerEndpoint.isValid()){
+            throw new IllegalArgumentException("---注册中心ip地址/端口无效");
+        }else if(this.requestTimeout<0){
+            throw new IllegalArgumentException("---超时时间设置无效---");
         }else{
-            throw new RuntimeException("---ip地址/端口无效---");
+            System.out.println("---成功加载配置---");
         }
+
     }
 
     //调用方法，返回结果
-    public Object invokeMethod(String className, String methodName, Map<String, Object> parameterMap) throws InterruptedException {
+    public Object invokeMethod(String className, String methodName, List<Object> parameterList)throws NoSuchServiceException,TimeoutException,IllegalArgumentException, MysocketException {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Object> result = new AtomicReference<>(); // 用于存储返回结果
         AtomicBoolean isTimedOut = new AtomicBoolean(false); // 用于标记是否超时
 
         Thread worker = new Thread(() -> {
-            try {
+            try{
                 ClientOperator clientOperator = new ClientOperator();
                 NetworkEndpoint serverEndpoint = clientOperator.getServerEndpoint(registerEndpoint, className+"."+methodName);
 
                 if (serverEndpoint != null) {
-                    result.set(clientOperator.invokeMethod(serverEndpoint, className +"."+ methodName, parameterMap));
+                    //此处可能抛出参数错误异常
+                    result.set(clientOperator.invokeMethod(serverEndpoint, className +"."+ methodName, parameterList));
                 } else {
-                    throw new RuntimeException("---未找到该服务---");
+                    throw new NoSuchServiceException("---未找到该服务---");
                 }
-            } catch (RuntimeException e) {
-                System.out.println(e.getMessage());
-            } finally {
+            }finally {
                 latch.countDown(); // 确保在所有路径中都递减计数器
             }
         });
@@ -66,7 +74,7 @@ public class LRPCClient {
 
         if (isTimedOut.get()) {
             // 处理超时情况，例如抛出异常或返回特定值
-            throw new InterruptedException("---请求超时---");
+            throw new TimeoutException("---请求超时---");
         }
 
         return result.get(); // 返回结果
