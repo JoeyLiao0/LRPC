@@ -56,7 +56,7 @@ public class LRPCClient {
                 } else {
                     throw new NoSuchServiceException("---未找到该服务---");
                 }
-            }finally {
+            } finally {
                 latch.countDown(); // 确保在所有路径中都递减计数器
             }
         });
@@ -77,6 +77,12 @@ public class LRPCClient {
             throw new TimeoutException("---请求超时---");
         }
 
-        return result.get(); // 返回结果
+        try {
+            return result.get();
+        } catch (RuntimeException e) {
+            // 这里捕获并处理由工作线程转换后的异常
+            throw new RuntimeException("---调用过程中产生异常---",e); // 或者根据需要进行其他处理
+        }
+
     }
 }
